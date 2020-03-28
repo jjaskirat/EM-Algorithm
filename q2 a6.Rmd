@@ -1,0 +1,200 @@
+---
+title: "845 a6 q2"
+author: "Jaskirat Singh Bhatia"
+date: "08/11/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+
+f1 <- function(lambda, x)
+{
+  val = ((exp(-lambda) * lambda ^ x) / (factorial(x)))
+  return(val)
+}
+
+```
+
+
+```{r}
+
+
+myMLEfunc <- function(x, Fisher=F, lambda=runif(1),
+  max.iter=100, eps=1e-7)
+{
+# finds MLE for the censored Poisson model,
+# given data (v,y), 
+# using either Newton's method or Fisher Scoring ...
+# written by M. Zhu for teaching illustration
+
+  i = 0; convg<-F; newlambda <- lambda
+  while (i < max.iter && !convg)
+  {
+    lambda <- newlambda
+    print(lambda)
+    g <- sum(-1 + x/lambda)   # first deriv    
+    
+    H <- sum(-x / (lambda ^ 2))
+    newlambda <- lambda - g/H
+    convg <- abs(lambda-newlambda)<eps
+    i <- i + 1
+  }
+  return(lambda)
+}
+
+myLIKfunc <- function(lambda, x)
+{
+# computes the log-likelihood function for the
+# censored Poisson model, given data (v,y) ...
+# written by M. Zhu for teaching illustration
+  return(sum(-lambda + x*log(lambda)))
+
+}
+
+# Here are some data:
+v<-c(0,1,2,3,4,5,6,7,8,9,10)
+x<-c(rep(0,162), rep(1,267), rep(2,271), rep(3,185), rep(4,111),
+     rep(5,61), rep(6,27), rep(7,8), rep(8,3), rep(9,1))
+
+# calculate and plot the loglikelihood function for
+# a number of different theta's ...
+lambda <- seq(0,3,len=50)
+plot(lambda, sapply(lambda, myLIKfunc, x),
+  type="l", 
+  xlim = c(0,3),
+  xlab=expression(lambda),ylab='',
+  main=expression(l(lambda)),
+  cex.main=2,cex.lab=1.5,cex.axis=1.25)
+
+# The plot shows that the maximum is around 0.5!
+# We now compare Newton's method vs. Fisher scoring
+# when we start close to and far away from the solution.
+
+# pure Newton, starting from theta=0.4
+lambda.opt<-myMLEfunc(x, Fisher=F, lambda=0.4)
+# Fisher scoring, starting from theta=0.4
+#lambda.opt<-myMLEfunc(x, Fisher=T, lambda=0.4)
+
+
+
+# now add the MLE onto the plot
+abline(v=lambda.opt, col='red')
+
+```
+```{r}
+
+output1 = paste(seq(0,10), "->", 1096 * f1(lambda.opt,seq(0,10)), "\n")
+
+cat("Predictions for my model are : \n")
+cat(output1)
+
+p1 <- 1096 * f1(lambda.opt,seq(0,10))
+
+```
+```{r}
+
+
+em_Poisson <- function(X, tol=.Machine$double.eps){ ##x takes input of data.frame
+  
+  N <- nrow(X) ##number of observations
+  x <- X$x
+  error <- Inf
+  iter <- 1
+  
+  ##initial guess, random starts
+  mu0 <- sample(1:100, 1)
+  mu1 <- sample(1:100, 1)
+  phi <- runif(1,0,1)
+
+  while(error > tol ){
+    
+    ##E-step
+    X$q_x1 <- phi*dpois(x,mu0)
+    X$q_x2 <- (1-phi)*dpois(x,mu1)
+    X$P1_x <- X$q_x1/(X$q_x1+X$q_x2) ##P=1|X
+    X$P2_x <- X$q_x2/(X$q_x1+X$q_x2) ##P=2|X
+    Q <- sum(log(X$q_x1)*X$P1_x)+sum(log(X$q_x2)*X$P2_x)
+    
+    ##M-step/update parameters
+    mu0_k <- sum(x*X$P1_x)/sum(X$P1_x)
+    mu1_k <- sum(x*X$P2_x)/sum(X$P2_x)
+    phi_k <- sum(X$P1_x)/N
+    
+    ##compare Q
+    X$q_x1_k <- phi_k*dpois(x,mu0_k)
+    X$q_x2_k <- (1-phi_k)*dpois(x,mu1_k)
+    X$P1_x_k <- X$q_x1/(X$q_x1+X$q_x2) 
+    X$P2_x_k <- X$q_x2/(X$q_x1+X$q_x2) 
+    Q_k <- sum(log(X$q_x1_k)*X$P1_x_k)+sum(log(X$q_x2_k)*X$P2_x_k)
+    
+    ##stop criterion
+    error <- Q_k-Q
+    iter <- iter+1
+    mu0 <- mu0_k
+    mu1 <- mu1_k
+    phi <- phi_k
+  }
+  theta<-c(mu0,mu1,phi)
+
+  return(theta)
+}
+
+
+# Here are some data:
+y<-c(rep(1,1096))
+z<-c(rep(0,162), rep(1,267), rep(2,271), rep(3,185), rep(4,111),
+     rep(5,61), rep(6,27), rep(7,8), rep(8,3), rep(9,1))
+
+X <- data.frame(x=z)
+
+values = em_Poisson(X)
+
+cat("P1 ->", values[1], "\n", "P2 ->", values[2], "\n", "phi ->", values[3])
+```
+
+```{r}
+f2 <- function(lambda1, lambda2, phi, x)
+{
+  
+  u = (phi * exp(-lambda1) * lambda1 ^ x) / factorial(x)
+  v = ((1 - phi) * exp(-lambda2) * lambda2 ^ x) / factorial(x)
+  
+  return(u+v)
+  
+}
+```
+
+
+
+```{r}
+
+output2 = paste(seq(0,10), "->", 1096 * f2(values[1], values[2], values[3], seq(0,10)), "\n")
+
+cat("Predictions for my model are : \n")
+cat(output2)
+
+p2 <- 1096 * f2(values[1], values[2], values[3], seq(0,10))
+
+```
+
+
+```{r}
+
+library(knitr)
+
+
+org = c(162, 267, 271, 185, 111, 61, 27, 8, 3, 1, 0)
+data = data.frame(original = org, P1 = p1, P2 = p2)
+
+
+kable(data)
+
+```
+
+- From the table, we can see that the P2 values are a better estimate for the data provided (deaths).
